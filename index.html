@@ -33,42 +33,8 @@ td.n{text-align:right;font-variant-numeric:tabular-nums}
 <h1>Scan Analytics</h1>
 
 <div class="card">
-  <h2>1. Load data</h2>
   <div class="row">
-    <div><label for="scanFiles">Scan CSVs (one or many)</label><input type="file" id="scanFiles" accept=".csv" multiple></div>
-    <div><label for="masterFile">Master CSV</label><input type="file" id="masterFile" accept=".csv"></div>
-    <div><label for="mode">Scan count method</label>
-      <select id="mode"><option value="sum">Sum of "Coupon Scanned"</option><option value="rows">Count of rows</option></select></div>
-  </div>
-  <p class="mute" id="status">Looking for data/manifest.json&hellip;</p>
-</div>
-
-<div class="card">
-  <h2>2. Filters <span class="mute">(nothing selected = all)</span></h2>
-  <div class="grid">
-    <div><label for="fDist">Distributor</label><select id="fDist" multiple></select></div>
-    <div><label for="fSeg">Segment</label><select id="fSeg" multiple></select></div>
-    <div><label for="fProd">Product</label><select id="fProd" multiple></select></div>
-    <div><label for="fPack">Pack size</label><select id="fPack" multiple></select></div>
-    <div>
-      <label for="from">Period from</label><input type="month" id="from">
-      <label for="to" style="margin-top:8px">Period to</label><input type="month" id="to">
-    </div>
-    <div>
-      <label for="metric">Show</label>
-      <select id="metric"><option value="scans">Scans</option><option value="volume">Volume</option><option value="both">Scans and volume</option></select>
-      <label for="topN" style="margin-top:8px">Top scanners per distributor (max 300)</label>
-      <input type="number" id="topN" value="20" min="1" max="300">
-      <label style="margin-top:8px"><input type="checkbox" id="running" style="width:auto"> Period end month is still running (exclude it from the inactive check)</label>
-      <label><input type="checkbox" id="never" style="width:auto"> Inactive: also list master users with no scans in period</label>
-    </div>
-  </div>
-</div>
-
-<div class="card">
-  <h2>3. Report</h2>
-  <div class="row">
-    <div style="min-width:240px"><label for="report">Report</label>
+    <div style="min-width:260px"><label for="report">Report</label>
       <select id="report">
         <option value="pivot">Pivot (user-wise, all details)</option>
         <option value="top">Top scanners</option>
@@ -83,17 +49,47 @@ td.n{text-align:right;font-variant-numeric:tabular-nums}
     <button id="dlCsv" class="alt" disabled>Download CSV</button>
     <button id="dlXlsx" class="alt" disabled>Download Excel</button>
   </div>
+  <p class="mute" id="status">Loading data&hellip;</p>
+  <details open style="margin-bottom:10px"><summary style="cursor:pointer;margin-bottom:8px">Filters (nothing selected = all)</summary>
+  <div class="grid">
+    <div><label for="fDist">Distributor</label><select id="fDist" multiple></select></div>
+    <div><label for="fSeg">Segment</label><select id="fSeg" multiple></select></div>
+    <div><label for="fProd">Product</label><select id="fProd" multiple></select></div>
+    <div><label for="fPack">Pack size</label><select id="fPack" multiple></select></div>
+    <div>
+      <label for="from">Period from</label><input type="month" id="from">
+      <label for="to" style="margin-top:8px">Period to</label><input type="month" id="to">
+    </div>
+    <div>
+      <label for="metric">Show</label>
+      <select id="metric"><option value="scans">Scans</option><option value="volume">Volume</option><option value="both">Scans and volume</option></select>
+      <label for="mode" style="margin-top:8px">Scan count method</label>
+      <select id="mode"><option value="sum">Sum of "Coupon Scanned"</option><option value="rows">Count of rows</option></select>
+      <label for="topN" style="margin-top:8px">Top scanners per distributor (max 300)</label>
+      <input type="number" id="topN" value="20" min="1" max="300">
+      <label style="margin-top:8px"><input type="checkbox" id="running" style="width:auto"> Period end month is still running (exclude it from the inactive check)</label>
+      <label><input type="checkbox" id="never" style="width:auto"> Inactive: also list master users with no scans in period</label>
+    </div>
+  </div></details>
   <p class="mute" id="info"></p>
   <div class="wrap"><table id="tbl"></table></div>
 </div>
 
 <script>
 const $=id=>document.getElementById(id);
-const D={recs:new Map(),master:new Map(),skipped:0,rows:0};
+const D={recs:new Map(),master:new Map(),skipped:0,rows:0,fmts:[]};
 let OUT=null;
 const nk=s=>String(s==null?'':s).toLowerCase().replace(/[^a-z0-9]/g,'');
 const rd=v=>Math.round(v*100)/100;
-const pm=s=>{s=String(s||'').trim();let a=/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/.exec(s);if(a)return a[3]+'-'+a[2].padStart(2,'0');a=/^(\d{4})[-\/](\d{1,2})/.exec(s);return a?a[1]+'-'+a[2].padStart(2,'0'):null};
+const MON={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+const p2=n=>String(n).padStart(2,'0');
+const DR=/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/;
+const fmtOf=s=>{const a=DR.exec(String(s||'').trim());if(!a)return'dmy';if(+a[1]>12)return'dmy';if(+a[2]>12)return'mdy';return null};
+const pm=(s,f)=>{s=String(s||'').trim();let a=DR.exec(s);if(a)return a[3]+'-'+p2(f==='mdy'?a[1]:a[2]);
+  a=/^(\d{4})[-\/](\d{1,2})/.exec(s);if(a)return a[1]+'-'+p2(a[2]);
+  a=/^(\d{1,2})[-\/ ]([A-Za-z]{3})[a-z]*[-\/ ,]+(\d{4})/.exec(s);if(a&&MON[a[2].toLowerCase()])return a[3]+'-'+p2(MON[a[2].toLowerCase()]);
+  if(/^\d{5}$/.test(s)){const d=new Date(Date.UTC(1899,11,30)+(+s)*864e5);return d.getUTCFullYear()+'-'+p2(d.getUTCMonth()+1)}
+  return null};
 const badCode=c=>!c||/^\d+(\.\d+)?E\+\d+$/i.test(c);
 const shift=(m,n)=>{let[y,x]=m.split('-').map(Number);x+=n;y+=Math.floor((x-1)/12);x=((x-1)%12+12)%12+1;return y+'-'+String(x).padStart(2,'0')};
 const mrange=(a,b)=>{const o=[];for(let m=a;m<=b&&o.length<240;m=shift(m,1))o.push(m);return o};
@@ -102,9 +98,14 @@ const status=t=>$('status').textContent=t;
 
 function parse(src,onRow){return new Promise((res,rej)=>Papa.parse(src,{header:true,skipEmptyLines:true,transformHeader:nk,download:typeof src==='string',chunk:r=>r.data.forEach(onRow),complete:res,error:rej}))}
 
+let CUR={fmt:null,pend:[]};
 function addScan(r){
   D.rows++;
-  const c=String(r.workshopcode||'').trim().toUpperCase(),m=pm(r.date);
+  if(!CUR.fmt){const f=fmtOf(r.date);if(f){CUR.fmt=f;CUR.pend.forEach(x=>addRec(x,f));CUR.pend=[]}else{CUR.pend.push(r);return}}
+  addRec(r,CUR.fmt);
+}
+function addRec(r,f){
+  const c=String(r.workshopcode||'').trim().toUpperCase(),m=pm(r.date,f);
   if(badCode(c)||!m){D.skipped++;return}
   const d=String(r.distributorname||'').trim(),p=String(r.product||'').trim()||'(blank)',
         k=String(r.packsize||'').trim(),g=String(r.productsegment||'').trim()||'(blank)';
@@ -125,11 +126,10 @@ async function loadScans(srcs){
 }
 async function loadMaster(src){status('Reading master ...');await parse(src,addMaster);done()}
 function done(){
-  status(`${D.rows.toLocaleString()} scan rows read, ${D.recs.size.toLocaleString()} aggregated, ${D.master.size.toLocaleString()} master users, ${D.skipped.toLocaleString()} rows skipped (bad code or date).`);
+  let a='9999',z='0000';D.recs.forEach(r=>{if(r.m<a)a=r.m;if(r.m>z)z=r.m});
+  status(`Data: ${a} to ${z}. ${D.rows.toLocaleString()} scan rows read, ${D.recs.size.toLocaleString()} aggregated, ${D.master.size.toLocaleString()} master users, ${D.skipped.toLocaleString()} rows skipped (bad code or date). Date order: ${D.fmts.join('; ')}.`);
   fillFilters();
 }
-$('scanFiles').onchange=e=>loadScans([...e.target.files]);
-$('masterFile').onchange=e=>loadMaster(e.target.files[0]);
 
 (async()=>{
   let mf;
@@ -144,7 +144,7 @@ $('masterFile').onchange=e=>loadMaster(e.target.files[0]);
       const h=await fetch('data/'+f,{method:'HEAD'});
       const t=(h.headers.get('content-type')||'').toLowerCase();
       if(!h.ok||t.includes('text/html'))throw new Error('missing');
-      status('Reading '+f+' ...');await parse('data/'+f,fn);
+      status('Reading '+f+' ...');CUR={fmt:null,pend:[]};await parse('data/'+f,fn);if(fn===addScan){CUR.pend.forEach(x=>addRec(x,'dmy'));D.fmts.push(f+': '+(CUR.fmt||'dmy'))}
     }catch(e){missing.push(f)}
   };
   if(mf.master)await tryLoad(mf.master,addMaster);
@@ -156,7 +156,6 @@ $('masterFile').onchange=e=>loadMaster(e.target.files[0]);
 function fillFilters(){
   const sets={d:new Set(),p:new Set(),k:new Set(),g:new Set()};let mn='9999',mx='0000';
   D.recs.forEach(r=>{sets.d.add(r.d);sets.p.add(r.p);sets.k.add(r.k);sets.g.add(r.g);if(r.m<mn)mn=r.m;if(r.m>mx)mx=r.m});
-  D.master.forEach(m=>sets.d.add(m.dist));
   const put=(id,s)=>{const old=new Set([...$(id).selectedOptions].map(o=>o.value));$(id).innerHTML=[...s].filter(Boolean).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(v=>`<option${old.has(v)?' selected':''}>${esc(v)}</option>`).join('')};
   put('fDist',sets.d);put('fProd',sets.p);put('fPack',sets.k);put('fSeg',sets.g);
   if(mx>='0'){ if(!$('from').value||$('from').value<mn)$('from').value=mn; if(!$('to').value||$('to').value<mx)$('to').value=mx; $('running').checked=$('to').value===mx&&$('running').dataset.set!=='1';}
