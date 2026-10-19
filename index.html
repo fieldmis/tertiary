@@ -132,12 +132,25 @@ $('scanFiles').onchange=e=>loadScans([...e.target.files]);
 $('masterFile').onchange=e=>loadMaster(e.target.files[0]);
 
 (async()=>{
+  let mf;
   try{
-    const mf=await (await fetch('data/manifest.json',{cache:'no-cache'})).json();
-    if(mf.master)await parse('data/'+mf.master,addMaster);
-    for(const f of mf.scans||[]){status('Reading '+f+' ...');await parse('data/'+f,addScan)}
-    done();
-  }catch(e){status('No manifest found. Choose the scan CSVs and master CSV above.')}
+    const r=await fetch('data/manifest.json',{cache:'no-cache'});
+    if(!r.ok)throw new Error(r.status);
+    mf=await r.json();
+  }catch(e){status('Could not read data/manifest.json. Choose the scan CSVs and master CSV above.');return}
+  const missing=[];
+  const tryLoad=async(f,fn)=>{
+    try{
+      const h=await fetch('data/'+f,{method:'HEAD'});
+      const t=(h.headers.get('content-type')||'').toLowerCase();
+      if(!h.ok||t.includes('text/html'))throw new Error('missing');
+      status('Reading '+f+' ...');await parse('data/'+f,fn);
+    }catch(e){missing.push(f)}
+  };
+  if(mf.master)await tryLoad(mf.master,addMaster);
+  for(const f of mf.scans||[])await tryLoad(f,addScan);
+  done();
+  if(missing.length)$('status').textContent+=' Not found in data/: '+missing.join(', ');
 })();
 
 function fillFilters(){
