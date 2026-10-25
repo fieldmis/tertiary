@@ -1,259 +1,157 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Scan Analytics</title>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mechanic Activity Reports</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-:root{--bg:#f3f5f4;--card:#fff;--ink:#17211d;--mute:#5d6b65;--line:#d5dcd8;--acc:#0b6b4f;--accink:#fff;--warn:#a4410a}
-@media (prefers-color-scheme:dark){:root{--bg:#121816;--card:#1a2320;--ink:#e6eeea;--mute:#98a8a0;--line:#2f3d38;--acc:#4cc59b;--accink:#06231a;--warn:#f0a36b}}
-*{box-sizing:border-box}
-body{margin:0;font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink);padding:16px;max-width:1400px;margin-inline:auto}
-h1{font-size:20px;margin:0 0 12px}h2{font-size:14px;margin:0 0 10px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px;margin-bottom:12px}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
-label{display:block;font-size:12px;color:var(--mute);margin-bottom:3px}
-select,input{width:100%;padding:6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);font:inherit}
-select[multiple]{height:110px}
-button{padding:7px 14px;border:1px solid var(--acc);background:var(--acc);color:var(--accink);border-radius:4px;font:inherit;cursor:pointer}
-button.alt{background:transparent;color:var(--acc)}
-button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
-.mute{color:var(--mute);font-size:12px}.warn{color:var(--warn)}
-.wrap{overflow:auto;max-height:65vh;border:1px solid var(--line);border-radius:4px}
-table{border-collapse:collapse;width:100%;font-size:12px}
-th,td{padding:4px 8px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:left}
-th{position:sticky;top:0;background:var(--card);border-bottom:2px solid var(--line)}
-td.n{text-align:right;font-variant-numeric:tabular-nums}
-</style>
-</head>
-<body>
-<h1>Scan Analytics</h1>
+:root{color-scheme:light dark;--bg:#fff;--fg:#1d2433;--mut:#6b7280;--bd:#d6dae1;--ac:#1a56db;--hd:#eef1f6}
+@media(prefers-color-scheme:dark){:root{--bg:#161a22;--fg:#e6e9ef;--mut:#9aa3b2;--bd:#323a49;--ac:#6c9cff;--hd:#222936}}
+*{box-sizing:border-box}body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,sans-serif}
+h1{font-size:19px;margin:0 0 12px}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:12px}
+label{display:block;font-size:12px;color:var(--mut);margin-bottom:3px}
+select,input[type=month],input[type=file]{width:100%;padding:6px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--fg)}
+select[multiple]{height:84px}
+.cb{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--fg);margin:4px 0}.cb input{width:auto}
+button{padding:8px 16px;border:0;border-radius:6px;background:var(--ac);color:#fff;font-weight:600;cursor:pointer;margin-right:8px}
+button:disabled{opacity:.4;cursor:default}
+#st,#note{color:var(--mut);margin:8px 0}
+.w{overflow:auto;max-height:65vh;border:1px solid var(--bd);border-radius:6px}
+table{border-collapse:collapse;width:100%}th,td{padding:5px 9px;border-bottom:1px solid var(--bd);white-space:nowrap;text-align:left}
+th{position:sticky;top:0;background:var(--hd)}td.n{text-align:right}tr.f td{font-weight:700;background:var(--hd)}
+.hide{display:none}
+</style></head><body>
+<h1>Mechanic Activity Reports</h1>
+<div id="st">Loading data...</div>
+<details id="manual" class="hide" style="margin-bottom:12px"><summary>Choose files manually</summary>
+<div class="g"><div><label>Scan CSVs (select all quarter files)</label><input type="file" id="fScans" multiple accept=".csv"></div>
+<div><label>Master CSV (optional)</label><input type="file" id="fMaster" accept=".csv"></div></div>
+<button id="bLoad">Load files</button></details>
 
-<div class="card">
-  <div class="row">
-    <div style="min-width:260px"><label for="report">Report</label>
-      <select id="report">
-        <option value="pivot">Pivot (user-wise, all details)</option>
-        <option value="top">Top scanners</option>
-        <option value="active">Active mechanics</option>
-        <option value="inactive">Inactive mechanics</option>
-        <option value="active5">Active with 5 scans</option>
-        <option value="product">Product-wise</option>
-        <option value="segment">Segment-wise</option>
-        <option value="tertiary">Tertiary (distributor x month volume)</option>
-      </select></div>
-    <button id="go">Prepare report</button>
-    <button id="dlCsv" class="alt" disabled>Download CSV</button>
-    <button id="dlXlsx" class="alt" disabled>Download Excel</button>
-  </div>
-  <p class="mute" id="status">Loading data&hellip;</p>
-  <details open style="margin-bottom:10px"><summary style="cursor:pointer;margin-bottom:8px">Filters (nothing selected = all)</summary>
-  <div class="grid">
-    <div><label for="fDist">Distributor</label><select id="fDist" multiple></select></div>
-    <div><label for="fSeg">Segment</label><select id="fSeg" multiple></select></div>
-    <div><label for="fProd">Product</label><select id="fProd" multiple></select></div>
-    <div><label for="fPack">Pack size</label><select id="fPack" multiple></select></div>
-    <div>
-      <label for="from">Period from</label><input type="month" id="from">
-      <label for="to" style="margin-top:8px">Period to</label><input type="month" id="to">
-    </div>
-    <div>
-      <label for="metric">Show</label>
-      <select id="metric"><option value="scans">Scans</option><option value="volume">Volume</option><option value="both">Scans and volume</option></select>
-      <label for="mode" style="margin-top:8px">Scan count method</label>
-      <select id="mode"><option value="sum">Sum of "Coupon Scanned"</option><option value="rows">Count of rows</option></select>
-      <label for="topN" style="margin-top:8px">Top scanners per distributor (max 300)</label>
-      <input type="number" id="topN" value="20" min="1" max="300">
-      <label style="margin-top:8px"><input type="checkbox" id="running" style="width:auto"> Period end month is still running (exclude it from the inactive check)</label>
-      <label><input type="checkbox" id="never" style="width:auto"> Inactive: also list master users with no scans in period</label>
-    </div>
-  </div></details>
-  <p class="mute" id="info"></p>
-  <div class="wrap"><table id="tbl"></table></div>
+<div class="g">
+ <div><label>Report</label><select id="rep">
+  <option value="active">1. Active Mechanics (1+ coupon in a month)</option>
+  <option value="active5">2. Active with 5 Scans (5+ in a month)</option>
+  <option value="inactive">3. Inactive Mechanics (none in last 3 months)</option></select></div>
+ <div><label>Period from</label><input type="month" id="from"></div>
+ <div><label>Period to</label><input type="month" id="to"></div>
+ <div><label>View</label><select id="view"><option value="month">Month-wise</option><option value="period">Period total</option></select></div>
+ <div><label>Distributor (none selected = all)</label><select id="dist" multiple></select></div>
 </div>
+<div id="opt-inactive" class="hide">
+ <div class="cb"><input type="checkbox" id="running"><label for="running" style="margin:0;color:inherit">Period end month is still running (exclude it; check the 3 months before it)</label></div>
+ <div class="cb"><input type="checkbox" id="never"><label for="never" style="margin:0;color:inherit">Also list master users with no scans in the period</label></div>
+</div>
+<button id="go" disabled>Generate</button><button id="dl" disabled>Download Excel</button>
+<div id="note"></div><div class="w"><table id="t"></table></div>
 
 <script>
-const $=id=>document.getElementById(id);
-const D={recs:new Map(),master:new Map(),skipped:0,rows:0,fmts:[]};
-let OUT=null;
-const nk=s=>String(s==null?'':s).toLowerCase().replace(/[^a-z0-9]/g,'');
-const rd=v=>Math.round(v*100)/100;
-const MON={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+// ===== CORE (pure logic; no DOM) =====
+const D={u:new Map(),months:new Set(),master:new Map()};
+const norm=s=>String(s==null?'':s).trim().toUpperCase();
 const p2=n=>String(n).padStart(2,'0');
-const DR=/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/;
-const fmtOf=s=>{const a=DR.exec(String(s||'').trim());if(!a)return'dmy';if(+a[1]>12)return'dmy';if(+a[2]>12)return'mdy';return null};
-const pm=(s,f)=>{s=String(s||'').trim();let a=DR.exec(s);if(a)return a[3]+'-'+p2(f==='mdy'?a[1]:a[2]);
-  a=/^(\d{4})[-\/](\d{1,2})/.exec(s);if(a)return a[1]+'-'+p2(a[2]);
-  a=/^(\d{1,2})[-\/ ]([A-Za-z]{3})[a-z]*[-\/ ,]+(\d{4})/.exec(s);if(a&&MON[a[2].toLowerCase()])return a[3]+'-'+p2(MON[a[2].toLowerCase()]);
-  if(/^\d{5}$/.test(s)){const d=new Date(Date.UTC(1899,11,30)+(+s)*864e5);return d.getUTCFullYear()+'-'+p2(d.getUTCMonth()+1)}
-  return null};
-const badCode=c=>!c||/^\d+(\.\d+)?E\+\d+$/i.test(c);
-const shift=(m,n)=>{let[y,x]=m.split('-').map(Number);x+=n;y+=Math.floor((x-1)/12);x=((x-1)%12+12)%12+1;return y+'-'+String(x).padStart(2,'0')};
-const mrange=(a,b)=>{const o=[];for(let m=a;m<=b&&o.length<240;m=shift(m,1))o.push(m);return o};
-const S=r=>$('mode').value==='rows'?r.n:r.sc;
-const status=t=>$('status').textContent=t;
-
-function parse(src,onRow){return new Promise((res,rej)=>Papa.parse(src,{header:true,skipEmptyLines:true,transformHeader:nk,download:typeof src==='string',chunk:r=>r.data.forEach(onRow),complete:res,error:rej}))}
-
-let CUR={fmt:null,pend:[]};
+function ymOf(s){s=String(s||'').trim();let m=s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);if(m)return m[3]+'-'+p2(m[2]);m=s.match(/^(\d{4})-(\d{2})/);return m?m[1]+'-'+m[2]:null}
+function mshift(k,d){const[y,m]=k.split('-').map(Number),t=y*12+m-1+d;return Math.floor(t/12)+'-'+p2(t%12+1)}
+function mrange(a,b){const o=[];for(let k=a;k<=b;k=mshift(k,1))o.push(k);return o}
+const MN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const mlabel=k=>MN[+k.slice(5)-1]+'-'+k.slice(0,4);
 function addScan(r){
-  D.rows++;
-  if(!CUR.fmt){const f=fmtOf(r.date);if(f){CUR.fmt=f;CUR.pend.forEach(x=>addRec(x,f));CUR.pend=[]}else{CUR.pend.push(r);return}}
-  addRec(r,CUR.fmt);
-}
-function addRec(r,f){
-  const c=String(r.workshopcode||'').trim().toUpperCase(),m=pm(r.date,f);
-  if(badCode(c)||!m){D.skipped++;return}
-  const d=String(r.distributorname||'').trim(),p=String(r.product||'').trim()||'(blank)',
-        k=String(r.packsize||'').trim(),g=String(r.productsegment||'').trim()||'(blank)';
-  const key=[c,d,m,p,k,g].join('|');
-  let x=D.recs.get(key);
-  if(!x){x={c,d,m,p,k,g,n:0,sc:0,v:0};D.recs.set(key,x)}
-  x.n++;x.sc+=parseFloat(r.couponscanned)||0;x.v+=parseFloat(r.volume)||0;
-}
+  const c=norm(r.WorkshopCode),m=ymOf(r.Date),n=parseFloat(r['#OfOilScans']);
+  if(!c||!m||!(n>0))return;
+  let u=D.u.get(c);if(!u){u={pm:{},dist:''};D.u.set(c,u)}
+  u.pm[m]=(u.pm[m]||0)+n;if(r.DistributorName)u.dist=r.DistributorName.trim();D.months.add(m)}
 function addMaster(r){
-  const c=String(r.sharecode||'').trim().toUpperCase();
-  if(badCode(c))return;
-  D.master.set(c,{dist:r.distributorname||'',name:r.workshopname||'',type:r.workshoptype||'',mob:r.mobilenumber||'',cat:r.companycategory||'',addr:r.address||'',out:r.outletname||''});
-}
+  const c=norm(r['Share Code']);
+  if(!c||/^\d+(\.\d+)?E\+\d+$/.test(c)||D.master.has(c))return; // skip blank / Excel-damaged codes, first row wins
+  D.master.set(c,{name:r.WorkshopName||'',type:r.WorkshopType||'',dsr:(r['DSR Name']||'').replace(/\s+/g,' ').trim(),dist:(r.DistributorName||'').trim(),mob:r['Mobile Number']||''})}
+const info=(c,u)=>{const m=D.master.get(c)||{};return[c,m.name||'',m.type||'',m.dsr||'',m.dist||(u&&u.dist)||'',m.mob||'']};
+const IH=['Workshop Code','Workshop Name','Workshop Type','DSR Name','Distributor','Mobile Number'];
+const sum=(u,ms)=>ms.reduce((a,m)=>a+((u&&u.pm[m])||0),0);
+const byDist=(a,b)=>String(a[4]).localeCompare(b[4])||String(a[0]).localeCompare(b[0]);
 
-async function loadScans(srcs){
-  for(const s of srcs){status('Reading '+(s.name||s)+' ... '+D.rows.toLocaleString()+' rows so far');await parse(s,addScan)}
-  done();
-}
-async function loadMaster(src){status('Reading master ...');await parse(src,addMaster);done()}
-function done(){
-  let a='9999',z='0000';D.recs.forEach(r=>{if(r.m<a)a=r.m;if(r.m>z)z=r.m});
-  status(`Data: ${a} to ${z}. ${D.rows.toLocaleString()} scan rows read, ${D.recs.size.toLocaleString()} aggregated, ${D.master.size.toLocaleString()} master users, ${D.skipped.toLocaleString()} rows skipped (bad code or date). Date order: ${D.fmts.join('; ')}.`);
-  fillFilters();
-}
-
-(async()=>{
-  let mf;
-  try{
-    const r=await fetch('data/manifest.json',{cache:'no-cache'});
-    if(!r.ok)throw new Error(r.status);
-    mf=await r.json();
-  }catch(e){status('Could not read data/manifest.json. Choose the scan CSVs and master CSV above.');return}
-  const missing=[];
-  const tryLoad=async(f,fn)=>{
-    try{
-      const h=await fetch('data/'+f,{method:'HEAD'});
-      const t=(h.headers.get('content-type')||'').toLowerCase();
-      if(!h.ok||t.includes('text/html'))throw new Error('missing');
-      status('Reading '+f+' ...');CUR={fmt:null,pend:[]};await parse('data/'+f,fn);if(fn===addScan){CUR.pend.forEach(x=>addRec(x,'dmy'));D.fmts.push(f+': '+(CUR.fmt||'dmy'))}
-    }catch(e){missing.push(f)}
-  };
-  if(mf.master)await tryLoad(mf.master,addMaster);
-  for(const f of mf.scans||[])await tryLoad(f,addScan);
-  done();
-  if(missing.length)$('status').textContent+=' Not found in data/: '+missing.join(', ');
-})();
-
-function fillFilters(){
-  const sets={d:new Set(),p:new Set(),k:new Set(),g:new Set()};let mn='9999',mx='0000';
-  D.recs.forEach(r=>{sets.d.add(r.d);sets.p.add(r.p);sets.k.add(r.k);sets.g.add(r.g);if(r.m<mn)mn=r.m;if(r.m>mx)mx=r.m});
-  const put=(id,s)=>{const old=new Set([...$(id).selectedOptions].map(o=>o.value));$(id).innerHTML=[...s].filter(Boolean).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(v=>`<option${old.has(v)?' selected':''}>${esc(v)}</option>`).join('')};
-  put('fDist',sets.d);put('fProd',sets.p);put('fPack',sets.k);put('fSeg',sets.g);
-  if(mx>='0'){ if(!$('from').value||$('from').value<mn)$('from').value=mn; if(!$('to').value||$('to').value<mx)$('to').value=mx; $('running').checked=$('to').value===mx&&$('running').dataset.set!=='1';}
-}
-const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-$('running').onchange=e=>e.target.dataset.set='1';
-const sel=id=>{const v=[...$(id).selectedOptions].map(o=>o.value);return v.length?new Set(v):null};
-
-function filtered(){
-  const d=sel('fDist'),p=sel('fProd'),k=sel('fPack'),g=sel('fSeg'),a=$('from').value,b=$('to').value;
-  return [...D.recs.values()].filter(r=>(!d||d.has(r.d))&&(!p||p.has(r.p))&&(!k||k.has(r.k))&&(!g||g.has(r.g))&&(!a||r.m>=a)&&(!b||r.m<=b));
-}
-function agg(recs,kf){
-  const U=new Map();
-  for(const r of recs){
-    const k=kf(r);let u=U.get(k);
-    if(!u){u={k,r,pm:{},s:0,v:0};U.set(k,u)}
-    const x=u.pm[r.m]||(u.pm[r.m]={s:0,v:0}),s=S(r);
-    x.s+=s;x.v+=r.v;u.s+=s;u.v+=r.v;
-  }
-  return U;
-}
-
-const BH=['Distributor','Share Code','Workshop Name','Workshop Type','Mobile','Address','Outlet','Company Category','In Master'];
-const bv=u=>{const c=u.r?u.r.c:u.c,m=D.master.get(c)||{};return[(u.r?u.r.d:u.d)||m.dist||'',c,m.name||'',m.type||'',m.mob||'',m.addr||'',m.out||'',m.cat||'',D.master.has(c)?'Y':'N']};
-const mh=(ms,mt)=>[...ms.flatMap(m=>[...(mt!=='volume'?[m+' Scans']:[]),...(mt!=='scans'?[m+' Volume']:[])]),...(mt!=='volume'?['Total Scans']:[]),...(mt!=='scans'?['Total Volume']:[])];
-const mv=(u,ms,mt)=>{const r=[];ms.forEach(m=>{const p=u.pm[m]||{s:0,v:0};if(mt!=='volume')r.push(p.s);if(mt!=='scans')r.push(rd(p.v))});if(mt!=='volume')r.push(u.s);if(mt!=='scans')r.push(rd(u.v));return r};
-
-function build(){
-  const rep=$('report').value,mt=$('metric').value,from=$('from').value,to=$('to').value;
-  if(!from||!to||from>to)throw new Error('Choose a valid period.');
-  const ms=mrange(from,to),recs=filtered(),pv=mt==='volume'?(u=>u.v):(u=>u.s);
-  const users=agg(recs,r=>r.c),list=[...users.values()];
-  const byDist=(a,b)=>(a.r.d||'').localeCompare(b.r.d||'')||pv(b)-pv(a);
-  let head,rows,name=rep;
-  if(rep==='pivot'){
-    head=[...BH,...mh(ms,mt)];rows=list.sort(byDist).map(u=>[...bv(u),...mv(u,ms,mt)]);
-  }else if(rep==='top'){
-    const n=Math.min(300,Math.max(1,parseInt($('topN').value)||20)),by={};
-    list.forEach(u=>(by[u.r.d]=by[u.r.d]||[]).push(u));
-    head=['Rank',...BH,...mh(ms,mt)];rows=[];
-    Object.keys(by).sort().forEach(d=>by[d].sort((a,b)=>pv(b)-pv(a)).slice(0,n).forEach((u,i)=>rows.push([i+1,...bv(u),...mv(u,ms,mt)])));
-  }else if(rep==='active'){
-    head=[...BH,'Months Active',...mh(ms,mt)];
-    rows=list.filter(u=>u.s>0).sort(byDist).map(u=>[...bv(u),ms.filter(m=>(u.pm[m]||{s:0}).s>0).length,...mv(u,ms,mt)]);
-  }else if(rep==='active5'){
-    head=[...BH,'Months with 5+ Scans',...mh(ms,mt)];
-    rows=list.map(u=>[u,ms.filter(m=>(u.pm[m]||{s:0}).s>=5).length]).filter(x=>x[1]>0).sort((a,b)=>byDist(a[0],b[0])).map(([u,c])=>[...bv(u),c,...mv(u,ms,mt)]);
-  }else if(rep==='inactive'){
-    const end=$('running').checked?shift(to,-1):to,win=[shift(end,-2),shift(end,-1),end];
-    let L=list.filter(u=>u.s>0&&!win.some(m=>(u.pm[m]||{s:0}).s>0));
-    if($('never').checked){
-      const d=sel('fDist');
-      D.master.forEach((m,c)=>{if(!users.has(c)&&(!d||d.has(m.dist)))L.push({r:{c,d:m.dist},pm:{},s:0,v:0})});
+function build(o){ // o:{rep,from,to,view,running,never,dists:Set}
+  if(!o.from||!o.to||o.from>o.to)throw new Error('Choose a valid period (From must not be after To).');
+  const ms=mrange(o.from,o.to),ok=r=>!o.dists||!o.dists.size||o.dists.has(r[4]);
+  const lab=ms.map(mlabel),span=mlabel(o.from)+(o.from===o.to?'':' to '+mlabel(o.to));
+  let head,rows,foot=null,note='';
+  const users=[...D.u.entries()];
+  if(o.rep==='active'||o.rep==='active5'){
+    const th=o.rep==='active5'?5:1,five=o.rep==='active5';
+    if(five)o.view='month';
+    if(o.view==='month'){
+      head=[...IH,...lab,five?'Months with 5+ Scans':'Total Coupons'];
+      rows=users.map(([c,u])=>{const v=ms.map(m=>u.pm[m]||0);
+        if(!v.some(x=>x>=th))return null;
+        const cells=five?v.map(x=>x>=5?x:''):v;
+        return[...info(c,u),...cells,five?v.filter(x=>x>=5).length:v.reduce((a,b)=>a+b,0)]}).filter(r=>r&&ok(r)).sort(byDist);
+      const k=IH.length;foot=['Active Users','','','','',''];
+      ms.forEach((m,i)=>foot.push(rows.filter(r=>+r[k+i]>=th).length));foot.push(rows.length+' unique');
+      note=`${five?'Active with 5 Scans':'Active Mechanics'} - month-wise, ${span}. ${rows.length} unique users.`;
+    }else{
+      head=[...IH,'Coupons Scanned ('+span+')'];
+      rows=users.map(([c,u])=>({c,u,s:sum(u,ms)})).filter(x=>x.s>0).map(x=>[...info(x.c,x.u),x.s]).filter(ok)
+        .sort((a,b)=>String(a[4]).localeCompare(b[4])||b[6]-a[6]);
+      foot=['Total','','','','','',rows.reduce((a,r)=>a+r[6],0)];
+      note=`Active Mechanics - period total, ${span}. ${rows.length} unique users.`;
     }
-    const last=u=>ms.filter(m=>(u.pm[m]||{s:0}).s>0).pop()||'-';
-    head=[...BH,'Last Scan Month',...mh(ms,mt)];
-    rows=L.sort(byDist).map(u=>[...bv(u),last(u),...mv(u,ms,mt)]);
-    $('info').dataset.extra=`Inactive = no scan in ${win[0]} to ${win[2]}.`;
-  }else if(rep==='product'){
-    const P=[...agg(recs,r=>r.g+'|'+r.p+'|'+r.k).values()].sort((a,b)=>a.k.localeCompare(b.k));
-    head=['Segment','Product','Pack Size',...mh(ms,mt)];rows=P.map(u=>[u.r.g,u.r.p,u.r.k,...mv(u,ms,mt)]);
-  }else if(rep==='segment'){
-    const P=[...agg(recs,r=>r.g).values()].sort((a,b)=>a.k.localeCompare(b.k));
-    head=['Segment',...mh(ms,mt)];rows=P.map(u=>[u.r.g,...mv(u,ms,mt)]);
-  }else if(rep==='tertiary'){
-    const P=[...agg(recs,r=>r.d).values()].sort((a,b)=>a.k.localeCompare(b.k));
-    head=['Distributor',...mh(ms,'volume')];rows=P.map(u=>[u.r.d,...mv(u,ms,'volume')]);
+  }else{ // inactive
+    const E=o.to,win=o.running?mrange(mshift(E,-3),mshift(E,-1)):mrange(mshift(E,-2),E);
+    const cand=new Map(users);
+    if(o.never)D.master.forEach((_,c)=>{if(!cand.has(c))cand.set(c,null)});
+    head=[...IH,'Coupons in Period ('+span+')','Last Scan Month'];
+    rows=[];
+    cand.forEach((u,c)=>{
+      const tot=sum(u,ms);if(!o.never&&tot<=0)return;
+      if(sum(u,win)>0)return; // active in last 3 months -> not inactive
+      const last=u?Object.keys(u.pm).filter(m=>m<=E&&u.pm[m]>0).sort().pop():null;
+      rows.push([...info(c,u),tot,last?mlabel(last):'-'])});
+    rows=rows.filter(ok).sort(byDist);
+    foot=['Total','','','','','',rows.reduce((a,r)=>a+r[6],0),''];
+    note=`Inactive Mechanics - no coupons in ${mlabel(win[0])} to ${mlabel(win[win.length-1])}; coupons shown for ${span}. ${rows.length} users.`;
   }
-  return{head,rows,name:`${name}_${from}_to_${to}`};
-}
+  return{head,rows,foot,note}}
+// ===== /CORE =====
 
-$('go').onclick=()=>{
-  try{
-    if(!D.recs.size)throw new Error('Load scan data first.');
-    OUT=build();
-    const{head,rows}=OUT,cap=300;
-    $('tbl').innerHTML='<thead><tr>'+head.map(h=>`<th>${esc(h)}</th>`).join('')+'</tr></thead><tbody>'+
-      rows.slice(0,cap).map(r=>'<tr>'+r.map(v=>`<td${typeof v==='number'?' class="n"':''}>${esc(v)}</td>`).join('')+'</tr>').join('')+'</tbody>';
-    $('info').className='mute';
-    $('info').textContent=`${rows.length.toLocaleString()} rows${rows.length>cap?` (showing first ${cap}; downloads have all)`:''}. ${$('info').dataset.extra||''}`;
-    $('dlCsv').disabled=$('dlXlsx').disabled=false;
-  }catch(e){OUT=null;$('info').className='warn';$('info').textContent=e.message;$('tbl').innerHTML='';$('dlCsv').disabled=$('dlXlsx').disabled=true}
-};
-$('report').onchange=()=>{$('info').dataset.extra=''};
-$('dlCsv').onclick=()=>{
-  if(!OUT)return;
-  const q=v=>{v=String(v==null?'':v);return/[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
-  const csv='\ufeff'+[OUT.head,...OUT.rows].map(r=>r.map(q).join(',')).join('\r\n');
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=OUT.name+'.csv';a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
-};
-$('dlXlsx').onclick=()=>{
-  if(!OUT)return;
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([OUT.head,...OUT.rows]),'Report');
-  XLSX.writeFile(wb,OUT.name+'.xlsx');
-};
-</script>
-</body>
-</html>
+const $=id=>document.getElementById(id);let OUT=null;
+const st=t=>$('st').textContent=t;
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function parse(text,fn){return new Promise((res,rej)=>Papa.parse(text,{header:true,skipEmptyLines:true,transformHeader:h=>h.trim(),
+  complete:r=>{r.data.forEach(fn);res()},error:rej}))}
+const dec=(buf,enc)=>new TextDecoder(enc).decode(buf);
+async function loadAll(scans,master){ // scans:[async()=>ArrayBuffer], master: async()=>ArrayBuffer|null
+  D.u.clear();D.months.clear();D.master.clear();
+  if(master){st('Reading master...');await parse(dec(await master(),'windows-1252'),addMaster)}
+  for(let i=0;i<scans.length;i++){st(`Reading scan file ${i+1} of ${scans.length}...`);await parse(dec(await scans[i](),'utf-8'),addScan)}
+  const ms=[...D.months].sort();if(!ms.length){st('No scan rows found.');return}
+  $('from').value=ms[0];$('to').value=ms[ms.length-1];
+  const ds=new Set();D.u.forEach((u,c)=>ds.add(info(c,u)[4]));
+  $('dist').innerHTML=[...ds].filter(Boolean).sort().map(d=>`<option>${esc(d)}</option>`).join('');
+  $('go').disabled=false;
+  st(`Loaded ${D.u.size.toLocaleString()} users, ${mlabel(ms[0])} to ${mlabel(ms[ms.length-1])} (${D.master.size.toLocaleString()} master records).`)}
+async function auto(){
+  try{const man=await (await fetch('data/manifest.json',{cache:'no-cache'})).json();
+    const get=f=>async()=>{const r=await fetch('data/'+f,{cache:'no-cache'});if(!r.ok)throw new Error(f);return r.arrayBuffer()};
+    await loadAll(man.scans.map(get),man.master?get(man.master):null)}
+  catch(e){st('Could not auto-load data/manifest.json. Choose the files manually.');$('manual').classList.remove('hide');$('manual').open=true}}
+$('bLoad').onclick=async()=>{const s=[...$('fScans').files].sort((a,b)=>a.name.localeCompare(b.name));
+  if(!s.length)return st('Select the scan CSV files first.');const m=$('fMaster').files[0];
+  await loadAll(s.map(f=>()=>f.arrayBuffer()),m?()=>m.arrayBuffer():null)};
+function ui(){const r=$('rep').value;$('opt-inactive').classList.toggle('hide',r!=='inactive');
+  $('view').disabled=r!=='active';if(r==='active5')$('view').value='month';if(r==='inactive')$('view').value='period'}
+$('rep').onchange=ui;ui();
+$('go').onclick=()=>{try{
+  OUT=build({rep:$('rep').value,from:$('from').value,to:$('to').value,view:$('view').value,running:$('running').checked,never:$('never').checked,
+    dists:new Set([...$('dist').selectedOptions].map(o=>o.value))});
+  const{head,rows,foot}=OUT,LIM=1000;
+  $('note').textContent=OUT.note+(rows.length>LIM?` Showing first ${LIM}; Excel has all.`:'');
+  $('t').innerHTML='<tr>'+head.map(h=>`<th>${esc(h)}</th>`).join('')+'</tr>'+
+    rows.slice(0,LIM).map(r=>'<tr>'+r.map(v=>`<td${typeof v==='number'?' class="n"':''}>${esc(v)}</td>`).join('')+'</tr>').join('')+
+    (foot?'<tr class="f">'+foot.map(v=>`<td${typeof v==='number'?' class="n"':''}>${esc(v)}</td>`).join('')+'</tr>':'');
+  $('dl').disabled=false}catch(e){$('note').textContent=e.message}};
+$('dl').onclick=()=>{if(!OUT)return;
+  const ws=XLSX.utils.aoa_to_sheet([OUT.head,...OUT.rows,...(OUT.foot?[OUT.foot]:[])]);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Report');
+  XLSX.writeFile(wb,`${$('rep').value}_${$('from').value}_to_${$('to').value}.xlsx`)};
+auto();
+</script></body></html>
